@@ -1,22 +1,17 @@
 // const text = require('./textResponses.js');
+const crypto = require('crypto');
 
-const requestOutline = (obj, num, type, response) => {
-  let stringMessage;
-  console.log(type);
+const users = {};
 
-  if (type === 'text/xml') {
-    if (obj.id !== undefined) { stringMessage = `<response><message>${obj.message}</message><id>${obj.id}</id></response>`; } else { stringMessage = `<response><message>${obj.message}</message>response>`; }
-    response.writeHead(num, { 'Content-Type': 'text/xml' });
-  } else {
-    stringMessage = JSON.stringify(obj);
-    response.writeHead(num, { 'Content-Type': 'application/json' });// explicit as json is default type
-  }
-  response.write(stringMessage);
-  response.end();
+let digest = crypto.createHash('sha1').update(JSON.stringify(users)).digest('hex');
+
+const genEtag = () => {
+  digest = crypto.createHash('sha1').update(JSON.stringify(users)).digest('hex');
 };
 
+// helper function
 const getParam = (url, param) => {
-  const lst = url.split('?');
+  const lst = url.split(/[&?]/g);
   for (let i = 1; i < lst.length; i++) {
     if (lst[i].indexOf(param) === 0 && lst[i].indexOf('=') === param.length) {
       return lst[i].substr(lst[i].indexOf('=') + 1);
@@ -25,110 +20,85 @@ const getParam = (url, param) => {
   return undefined;
 };
 
-const getSuccess = (request, response) => {
-  let header;
-  if (request.headers !== undefined) {
-    header = request.headers.accept;
+const respondMeta = (num, modified, response) => {
+    // write head
+  response.writeHead(num, {
+    'Content-Type': 'application/json',
+    etag: digest,
+  });// explicit as json is only supported type
+
+  if (!modified) {
+    response.end();
   }
-  requestOutline({
-    message: 'This is a successful response',
-    id: 'Success',
-  }, 200, header, response);
 };
 
-const badRequest = (request, response) => {
-  let header;
+const respondWrite = (obj, num, response) => {
+  respondMeta(num, true, response);
+  response.write(JSON.stringify(obj));
+  response.end();
+};
 
-  if (request.headers !== undefined) {
-    header = request.headers.accept;
+
+const getUsers = (request, response) => {
+  // if (request.headers !== undefined) {
+  const modified = request.headers['if-none-match'] !== digest;
+  console.log(request.headers['if-none-match']);
+  console.log(digest);
+  // }
+  const meta = request.header === 'HEAD';
+  const respCode = modified ? 200 : 304;
+
+  if (!meta && modified) {
+    respondWrite({ users }, respCode, response);
+  } else {
+    respondMeta(respCode, false, response);
   }
-  if (getParam(request.url, 'valid') === 'true') {
-    requestOutline({
-      message: 'The request has the required paramaters',
-    }, 200, header, response);
+};
+
+const addUser = (request, response) => {
+  const name = getParam(request.url, 'name');
+  const age = getParam(request.url, 'age');
+
+  if (name !== undefined && name !== '' && age !== '' && age !== undefined) {
+    if (users[name] !== undefined) {
+      users[name].age = age;
+      respondMeta(204, false, response);
+      genEtag();
+      return;
+    }
+    const newUser = {
+      name, age,
+    };
+
+    users[newUser.name] = newUser;
+    respondWrite({ newUser }, 201, response);
+    genEtag();
     return;
   }
 
-  requestOutline({
-    message: 'Missing valid query parameter set to true',
-    id: 'badRequest',
-  }, 400, header, response);
-};
-
-const unauthorized = (request, response) => {
-  let header;
-
-  if (request.headers !== undefined) {
-    header = request.headers.accept;
-  }
-  if (getParam(request.url, 'loggedIn') === 'yes') {
-    requestOutline({
-      message: 'You have successfully viewed the content.',
-    }, 200, header, response);
-    return;
-  }
-
-  requestOutline({
-    message: 'Missing loggedIn query parameter set to yes.',
-    id: 'unauthorized',
-  }, 401, header, response);
-};
-
-const forbidden = (request, response) => {
-  let header;
-
-  if (request.headers !== undefined) {
-    header = request.headers.accept;
-  }
-
-  requestOutline({
-    message: 'You do not have access to this content.',
-    id: 'forbidden',
-  }, 403, header, response);
-};
-
-const internal = (request, response) => {
-  let header;
-
-  if (request.headers !== undefined) {
-    header = request.headers.accept;
-  }
-  requestOutline({
-    message: 'Internal server error. Something went wrong.',
-    id: 'internalError',
-  }, 500, header, response);
+  respondWrite({
+    message: 'Name and age are both required.',
+    id: 'missingParams',
+  }, 400, response);
 };
 
 const notFound = (request, response) => {
-  let header;
+  const meta = request.header === 'HEAD';
+  const respCode = 404;
 
-  if (request.headers !== undefined) {
-    header = request.headers.accept;
+  if (meta) {
+    respondMeta(respCode, false, response);
+    return;
   }
-  requestOutline({
+
+  respondWrite({
     message: 'The page you are looking for was not found.',
     id: 'notFound',
-  }, 404, header, response);
-};
-
-const notImplemented = (request, response) => {
-  let header;
-
-  if (request.headers !== undefined) {
-    header = request.headers.accept;
-  }
-  requestOutline({
-    message: 'A get request for this page has not been implemented yet. Check again later for updated content.',
-    id: 'notImplemented',
-  }, 501, header, response);
+  }, respCode, response);
 };
 
 
 // expose the methods
-module.exports.getSuccess = getSuccess;
-module.exports.badRequest = badRequest;
-module.exports.unauthorized = unauthorized;
-module.exports.internal = internal;
-module.exports.forbidden = forbidden;
+module.exports.getUsers = getUsers;
 module.exports.notFound = notFound;
-module.exports.notImplemented = notImplemented;
+module.exports.addUser = addUser;

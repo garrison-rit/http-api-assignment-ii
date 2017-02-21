@@ -10,33 +10,20 @@ const port = process.env.PORT || process.env.NODE_PORT || 3000;
 
 // creating the server
 const onRequest = (request, response) => {
-  console.dir(request.url.split('?')[0]);
+  console.log(request.url);
 
   switch (request.url.split('?')[0]) {
-    case '' :
     case '/':
       htmlHandler.getIndex(request, response);
       break;
     case '/style.css':
       htmlHandler.getCSS(request, response);
       break;
-    case '/success':
-      jsonHandler.getSuccess(request, response);
+    case '/getUsers':
+      jsonHandler.getUsers(request, response);
       break;
-    case '/badRequest':
-      jsonHandler.badRequest(request, response);
-      break;
-    case '/unauthorized':
-      jsonHandler.unauthorized(request, response);
-      break;
-    case '/forbidden':
-      jsonHandler.forbidden(request, response);
-      break;
-    case '/internal':
-      jsonHandler.internal(request, response);
-      break;
-    case '/notImplemented':
-      jsonHandler.notImplemented(request, response);
+    case '/addUser':
+      jsonHandler.addUser(request, response);
       break;
     default:
       jsonHandler.notFound(request, response);

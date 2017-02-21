@@ -6,7 +6,108 @@
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.34/browser.min.js"></script>
   <script type="text/babel">
+    
+    let etag;
 
+      const getUsers = (e, userForm) => {
+          
+            const url = userForm.querySelector('#urlField').value;
+            //grab method selected
+            const method = userForm.querySelector('#methodSelect').value.toUpperCase();
+      
+            var xhttp = new XMLHttpRequest();
+            xhttp.open(method, url, true);
+            xhttp.setRequestHeader("Accept", 'application/json');
+            xhttp.setRequestHeader("if-none-match", etag);
+          
+            xhttp.onload = function() {
+                handleResponse(xhttp, method!== 'HEAD');
+            };
+            
+            xhttp.send();
+          
+            e.preventDefault();
+          
+          return false;
+    }
+      
+      const addUser =  (e, userForm) => {
+          
+            const name = userForm.querySelector('#nameField').value;
+            //grab method selected
+            const age = userForm.querySelector('#ageField').value;
+      
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("POST", "/addUser?name="+name+"&age="+age, true);
+            xhttp.setRequestHeader("Accept", 'application/json');
+          
+            xhttp.onload = function() {
+                handleResponse(xhttp,true);
+            };
+            
+            xhttp.send();
+          
+            e.preventDefault();
+          return false;
+    }
+       
+    const handleResponse = function(xhr, hasJson){
+        
+        
+        console.log(xhr.getResponseHeader ('etag'));
+        xhr.getResponseHeader ('etag')!=null;
+        etag = xhr.getResponseHeader ('etag');
+        
+        let content =  document.querySelector('#content');
+        
+        switch(xhr.status) {
+          case 200: //if success
+            content.innerHTML = `<b>Success</b>`;
+            break;
+          case 201: //if created
+            content.innerHTML = `<b>Create</b>`;
+            break;
+          case 204: //if created
+            content.innerHTML = `<b>Updated (no content)</b>`;
+            break;
+          case 304: //if not modified
+            //THIS may only fire under certain circumstances
+            //Often a 200 will fire because this will tell the
+            //browser to pull from cache (which was a 200 response)
+            content.innerHTML = `<b>Not Modified</b>`;
+            break;
+          case 400: //if bad request
+            content.innerHTML = `<b>Bad Request</b>`;
+            break;
+          case 404: //if not found
+            content.innerHTML = `<b>Resource Not Found</b>`;
+            break;
+          default: //any other status
+            content.innerHTML = `Error code not implemented by client.`;
+            break;
+        }
+        
+        if(hasJson)
+            if(xhr.status>=400){
+                content.innerHTML+= "<br>Message: " +JSON.parse(xhr.responseText).message;//resp.message;
+            } else {
+                content.innerHTML+=xhr.responseText;
+            }
+           // JSON.parse(xhr.responseText);
+    }
+    window.onload = () =>{
+        
+      const userForm = document.querySelector('#userForm');
+      const nameForm = document.querySelector('#nameForm');
+      
+      //function to handle our request
+      const sendUser = (e) => getUsers(e, userForm);
+      const sendName = (e) => addUser(e, nameForm);
+      //add event listener
+      userForm.addEventListener('submit', sendUser);
+      nameForm.addEventListener('submit', sendName);
+        
+    }
   </script>
 </head>
 <body>
@@ -28,6 +129,7 @@
         <option value="get">GET</option>
         <option value="head">HEAD</option>
       </select>
+        
       <input type="submit" value="Get User" />
     </form>
   </section>
